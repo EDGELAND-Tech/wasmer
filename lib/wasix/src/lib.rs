@@ -55,7 +55,7 @@ mod state;
 mod syscalls;
 mod utils;
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Mutex};
 
 #[allow(unused_imports)]
 use bytes::{Bytes, BytesMut};
@@ -771,6 +771,9 @@ fn stub_initializer(
     Ok(())
 }
 
+pub static TEMP_ADDITION_IMPORTS: LazyLock<Mutex<Imports>> =
+    LazyLock::new(|| Mutex::new(Imports::new()));
+
 // TODO: split function into two variants, one for JS and one for sys.
 // (this will make code less messy)
 fn import_object_for_all_wasi_versions(
@@ -793,6 +796,11 @@ fn import_object_for_all_wasi_versions(
         "wasix_32v1" => exports_wasix_32v1,
         "wasix_64v1" => exports_wasix_64v1,
     };
+
+    let guard = TEMP_ADDITION_IMPORTS.lock().unwrap();
+    for ((n, m), e) in guard.into_iter() {
+        imports.define(&n, &m, e);
+    }
 
     let init = Box::new(stub_initializer) as ModuleInitializer;
 
