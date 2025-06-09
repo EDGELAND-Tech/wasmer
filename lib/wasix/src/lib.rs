@@ -55,8 +55,7 @@ mod state;
 mod syscalls;
 mod utils;
 
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[allow(unused_imports)]
 use bytes::{Bytes, BytesMut};
