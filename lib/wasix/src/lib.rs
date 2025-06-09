@@ -55,7 +55,7 @@ mod state;
 mod syscalls;
 mod utils;
 
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 
 #[allow(unused_imports)]
 use bytes::{Bytes, BytesMut};
@@ -66,10 +66,7 @@ use tracing::error;
 pub use wasmer;
 pub use wasmer_wasix_types;
 
-use wasmer::{
-    imports, namespace, AsStoreMut, Exports, FunctionEnv, Imports, Memory32, MemoryAccessError,
-    MemorySize, RuntimeError,
-};
+use wasmer::{imports, namespace, AsStoreMut, Exports, FunctionEnv, Imports, Memory32, MemoryAccessError, MemorySize, RuntimeError, Store};
 
 pub use virtual_fs;
 pub use virtual_fs::{DuplexPipe, FsError, Pipe, VirtualFile, WasiBidirectionalSharedPipePair};
@@ -107,6 +104,9 @@ pub use crate::{
         WasiVersion,
     },
 };
+
+pub static ADDITIONAL_IMPORTS_FN: Mutex<Option<Box<dyn Fn(&mut Store) -> Imports + Send + Sync>>> =
+    Mutex::new(None);
 
 /// This is returned in `RuntimeError`.
 /// Use `downcast` or `downcast_ref` to retrieve the `ExitCode`.
@@ -771,9 +771,6 @@ fn stub_initializer(
     Ok(())
 }
 
-pub static TEMP_ADDITION_IMPORTS: LazyLock<Mutex<Imports>> =
-    LazyLock::new(|| Mutex::new(Imports::new()));
-
 // TODO: split function into two variants, one for JS and one for sys.
 // (this will make code less messy)
 fn import_object_for_all_wasi_versions(
@@ -796,11 +793,6 @@ fn import_object_for_all_wasi_versions(
         "wasix_32v1" => exports_wasix_32v1,
         "wasix_64v1" => exports_wasix_64v1,
     };
-
-    let guard = TEMP_ADDITION_IMPORTS.lock().unwrap();
-    for ((n, m), e) in guard.into_iter() {
-        imports.define(&n, &m, e);
-    }
 
     let init = Box::new(stub_initializer) as ModuleInitializer;
 

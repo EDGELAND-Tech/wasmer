@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tracing::trace;
 use wasmer::{
@@ -16,6 +16,7 @@ use crate::{
     state::WasiInstanceHandles,
     utils::{get_wasi_version, get_wasi_versions, store::restore_store_snapshot},
     RewindStateOption, StoreSnapshot, WasiEnv, WasiError, WasiRuntimeError, WasiThreadError,
+    ADDITIONAL_IMPORTS_FN,
 };
 
 /// The default stack size for WASIX - the number itself is the default that compilers
@@ -77,6 +78,17 @@ impl WasiFunctionEnv {
         let mut ctx = WasiFunctionEnv::new(&mut store, env);
         let (mut import_object, init) =
             import_object_for_all_wasi_versions(&module, &mut store, &ctx.env);
+        let guard = ADDITIONAL_IMPORTS_FN.lock().unwrap();
+        let func = guard.as_ref().unwrap();
+        let addition_imports = func(&mut store);
+        for ((namespace, name), value) in &addition_imports {
+            // Note: We don't want to let downstream users override WASIX
+            // syscalls
+            if !import_object.exists(&namespace, &name) {
+                import_object.define(&namespace, &name, value);
+            }
+        }
+
         if let Some(memory) = memory.clone() {
             import_object.define("env", "memory", memory);
         }
