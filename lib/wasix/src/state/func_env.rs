@@ -80,13 +80,15 @@ impl WasiFunctionEnv {
             import_object_for_all_wasi_versions(&module, &mut store, &ctx.env);
         {
             let guard = ADDITIONAL_IMPORTS_FN.lock().unwrap();
-            let func = guard.as_ref().unwrap();
-            let addition_imports = func(&mut store);
-            for ((namespace, name), value) in &addition_imports {
-                // Note: We don't want to let downstream users override WASIX
-                // syscalls
-                if !import_object.exists(&namespace, &name) {
-                    import_object.define(&namespace, &name, value);
+            if guard.is_some() {
+                let func = guard.as_ref().unwrap();
+                let addition_imports = func(&mut store);
+                for ((namespace, name), value) in &addition_imports {
+                    // Note: We don't want to let downstream users override WASIX
+                    // syscalls
+                    if !import_object.exists(&namespace, &name) {
+                        import_object.define(&namespace, &name, value);
+                    }
                 }
             }
         }
